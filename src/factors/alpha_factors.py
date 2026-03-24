@@ -1,5 +1,6 @@
 """
-Alpha factor definitions: Momentum, Mean Reversion, and Overnight Sentiment.
+Alpha factor definitions: Momentum, Mean Reversion, Overnight Sentiment,
+and Volume-Weighted Momentum.
 """
 
 import numpy as np
@@ -8,6 +9,7 @@ from zipline.pipeline.classifiers import Classifier
 from zipline.pipeline.data import USEquityPricing
 from zipline.pipeline.factors import (
     AverageDollarVolume,
+    CustomFactor,
     Returns,
     SimpleMovingAverage,
 )
@@ -89,8 +91,54 @@ def overnight_sentiment_smoothed(cto_window_length, trail_window_length, univers
     )
 
 
+class VolumeWeightedMomentum(CustomFactor):
+    """
+    Volume-weighted momentum: weights each day's return by its share of
+    total volume over the lookback window.  High-volume price moves carry
+    more information, so this separates "confirmed" momentum from
+    low-conviction drift.
+
+    Inputs: daily close prices, daily trading volume.
+    Output: single scalar per asset — the volume-weighted cumulative return.
+    """
+    inputs = [USEquityPricing.close, USEquityPricing.volume]
+    window_safe = True
+
+    def compute(self, today, assets, out, closes, volumes):
+        daily_returns = np.diff(closes, axis=0) / closes[:-1]
+        vol_slice = volumes[1:]
+
+        vol_sum = np.nansum(vol_slice, axis=0)
+        vol_sum[vol_sum == 0] = 1.0
+        weights = vol_slice / vol_sum
+
+        out[:] = np.nansum(weights * daily_returns, axis=0)
+
+
+def volume_weighted_momentum_smoothed(window_length, universe, sector):
+    """
+    Volume-weighted momentum factor: sector-neutralized, SMA-smoothed,
+    ranked, and z-scored.
+
+    Unlike plain momentum (which weights all days equally), this factor
+    amplifies price moves that occurred on high-volume days — a proxy for
+    institutional conviction.
+    """
+    raw = (
+        VolumeWeightedMomentum(window_length=window_length, mask=universe)
+        .demean(groupby=sector)
+        .rank()
+        .zscore()
+    )
+    return (
+        SimpleMovingAverage(inputs=[raw], window_length=20)
+        .rank()
+        .zscore()
+    )
+
+
 def build_alpha_pipeline():
-    """Build a pipeline with all three alpha factors and the sector classifier."""
+    """Build a pipeline with all four alpha factors and the sector classifier."""
     universe = AverageDollarVolume(window_length=120).top(UNIVERSE_SIZE)
     sector = Sector()
 
@@ -103,6 +151,10 @@ def build_alpha_pipeline():
     pipeline.add(
         overnight_sentiment_smoothed(2, 10, universe),
         "Overnight_Sentiment_Smoothed",
+    )
+    pipeline.add(
+        volume_weighted_momentum_smoothed(120, universe, sector),
+        "Volume_Weighted_Momentum_Smoothed",
     )
     pipeline.add(sector, "sector_code")
 

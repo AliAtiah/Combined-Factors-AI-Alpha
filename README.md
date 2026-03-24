@@ -2,7 +2,7 @@
 
 Combining multiple alpha factors with machine learning ensemble methods to generate a superior AI-driven alpha signal for equity trading.
 
-The pipeline constructs three alpha factors (Momentum, Mean Reversion, Overnight Sentiment), engineers regime and calendar features, and trains a **NoOverlapVoter** ensemble — a custom non-overlapping Random Forest that avoids look-ahead bias from overlapping forward-return targets.
+The pipeline constructs four alpha factors (Momentum, Mean Reversion, Overnight Sentiment, Volume-Weighted Momentum), engineers regime and calendar features, and trains a **NoOverlapVoter** ensemble — a custom non-overlapping Random Forest that avoids look-ahead bias from overlapping forward-return targets.
 
 ## Key Results
 
@@ -18,7 +18,7 @@ Combined-Factors-AI-Alpha/
 │   │   ├── pipeline.py              # Zipline bundle registration & pricing
 │   │   └── features.py              # Feature engineering (regime, calendar, sector)
 │   ├── factors/
-│   │   └── alpha_factors.py         # Alpha factor definitions (Momentum, MR, Overnight)
+│   │   └── alpha_factors.py         # Alpha factor definitions (Momentum, MR, Overnight, VWAM)
 │   ├── models/
 │   │   ├── classifiers.py           # Train/test split, BaggingClassifier, NoOverlapVoter
 │   │   └── evaluation.py            # Sharpe ratio, Alphalens factor analysis
@@ -28,7 +28,8 @@ Combined-Factors-AI-Alpha/
 │   ├── analysis.ipynb               # Streamlined walkthrough (imports from src/)
 │   └── Alpha-Factors-Original.ipynb # Original monolithic notebook (reference)
 ├── tests/
-│   └── test_models.py               # Unit tests for classifiers module
+│   ├── test_models.py               # Unit tests for classifiers module
+│   └── test_alpha_factors.py        # Unit tests for VWAM factor logic
 ├── requirements.txt
 └── README.md
 ```
@@ -40,6 +41,7 @@ Combined-Factors-AI-Alpha/
 | **Momentum 1YR** | 252-day return, sector-neutralized, ranked, z-scored |
 | **Mean Reversion (Smoothed)** | 20-day negative return, sector-neutralized, SMA-smoothed |
 | **Overnight Sentiment** | Trailing close-to-open returns, smoothed |
+| **Volume-Weighted Momentum** | 120-day volume-weighted returns, sector-neutralized, SMA-smoothed |
 
 ## Features
 
@@ -57,6 +59,18 @@ Combined-Factors-AI-Alpha/
 ### NoOverlapVoter
 
 The overlapping forward-return targets (5-day windows) create correlated training samples. The `NoOverlapVoter` trains `n_skip_samples + 1` separate classifiers, each on a different offset of the data, and combines them via soft voting. This eliminates overlap bias while retaining full data coverage.
+
+### Volume-Weighted Momentum (VWAM)
+
+Standard momentum treats every trading day equally. VWAM instead weights each day's return by its share of total volume over the lookback window. The intuition: price moves on heavy volume reflect institutional conviction and carry more predictive power than moves on thin volume.
+
+**Pipeline**: 120-day VWAM raw signal &rarr; sector-neutralize (demean by sector) &rarr; rank &rarr; z-score &rarr; 20-day SMA smoothing &rarr; rank &rarr; z-score.
+
+This factor is **complementary** to the existing set:
+- *Momentum 1YR* weights all 252 days equally.
+- *Mean Reversion* captures short-term price reversals.
+- *Overnight Sentiment* isolates non-trading-hours information flow.
+- *VWAM* isolates **volume-confirmed** trends over a medium horizon.
 
 ## Quick Start
 

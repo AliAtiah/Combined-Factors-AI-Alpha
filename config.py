@@ -27,6 +27,7 @@ FEATURES = [
     "Mean_Reversion_Sector_Neutral_Smoothed",
     "Momentum_1YR",
     "Overnight_Sentiment_Smoothed",
+    "Volume_Weighted_Momentum_Smoothed",
     "adv_120d",
     "adv_20d",
     "dispersion_120d",
@@ -47,6 +48,7 @@ EVAL_FACTOR_NAMES = [
     "Mean_Reversion_Sector_Neutral_Smoothed",
     "Momentum_1YR",
     "Overnight_Sentiment_Smoothed",
+    "Volume_Weighted_Momentum_Smoothed",
     "adv_120d",
     "volatility_20d",
 ]
